@@ -10,6 +10,7 @@
 # ============================================================
 
 MODE: "{同人模式/原创模式}"  # 同人模式：蝴蝶效应对比已知原著走向；原创模式：对比系统推断的最可能走向
+TEMPERATURE: "{平静/正常/紧张}"  # 世界温度，决定自主事件频率与强度
 
 WORLD:
   location: "{当前地点} — {氛围描述}"
@@ -17,7 +18,7 @@ WORLD:
   timeline:
     - "{故事起始时间戳}: 故事开始 — {简述}"
     - "{当前时间戳}: 当前时刻 — {当前场景简述}"
-  atmosphere: "{整体氛围关键词}"
+  atmosphere_tag: "{氛围标签}"  # 从 ATMOSPHERE.value 派生的简短定性标签
   rules: "{世界特殊规则，如：魔法存在、重力异常等}"
 
 CHARACTERS:
@@ -72,6 +73,51 @@ BUTTERFLY:
       immediate_consequence: "{直接后果}"
       ripple_effects: ["{连锁影响1}", "{连锁影响2}"]
 
+# ---- 情绪矩阵（Stage 4B） ----
+EMOTIONAL_MATRIX:
+  # N×N 矩阵，行=感受者，列=目标。值范围 -10(极度敌对) ~ +10(极度爱慕)
+  # 格式: {感受者} → {目标}: {情绪定位}+{强度}
+  # 情绪定位: 敌对/戒备/冷漠/中立/友善/亲近/爱慕
+  relations:
+    - from: "{角色A}"
+      to: "{角色B}"
+      stance: "{友善}"
+      intensity: {3}
+      last_change: "T{回合号} — {原因简述}"
+    - from: "{角色A}"
+      to: "{角色C}"
+      stance: "{戒备}"
+      intensity: {-4}
+      last_change: "T{回合号} — {原因简述}"
+  # 每个角色的当前情绪值（综合值，范围 -10 ~ +10）
+  current_emotions:
+    - character: "{角色名}"
+      value: {当前情绪值}
+      baseline: {基线情绪值}  # 来自精神分析感性维度，情绪向此回归
+      trigger: "{当前情绪触发原因}"  # 最近一次情绪变化的原因
+
+# ---- 场景氛围（Stage 4B） ----
+ATMOSPHERE:
+  value: {当前氛围值}  # 范围 -10 ~ +10
+  environmental_baseline: {环境基线值}  # 地点固有氛围
+  emotional_contribution: {在场角色情绪加权均值}
+  event_shock_residual: {近期事件冲击残余值}  # 每轮 ×0.7 衰减
+  recent_shocks:
+    - turn: T{回合号}
+      cause: "{事件简述}"
+      shock_value: {冲击值 ±8}
+      residual: {当前残余值}
+
+# ---- 世界自主事件记录（Stage 4A） ----
+WORLD_EVENTS:
+  last_trigger_turn: T{回合号}  # 上次触发自主事件的回合
+  cooldown_until: T{回合号}  # 冷却结束回合（重级事件后）
+  history:
+    - turn: T{回合号}
+      type: "{环境变迁/NPC自主行动/情节回响/随机遭遇}"
+      intensity: "{轻/中/重}"
+      summary: "{事件简述}"
+
 SESSION:
   user_role: "{用户扮演的角色名}"
   start_time: "{会话开始时间}"
@@ -96,7 +142,14 @@ SESSION:
 
 ```
 UPDATE:
+  TEMPERATURE: "{新温度}"  # 如世界温度漂移
   CHARACTERS.{角色名}.status: "{新状态}"
+  EMOTIONAL_MATRIX.relations.{from→to}: "{新定位}+{新强度}"
+  EMOTIONAL_MATRIX.current_emotions.{角色名}.value: {新情绪值}
+  ATMOSPHERE.value: {新氛围值}
+  ATMOSPHERE.recent_shocks: +"{新冲击}"
+  WORLD_EVENTS.last_trigger_turn: T{回合号}
+  WORLD_EVENTS.history: +"{新事件}"
   PLOT.current_scene: "{新场景描述}"
   PLOT.recent_events: +"{新事件}"
   SESSION.turn_count: {新回合数}
@@ -111,3 +164,7 @@ UPDATE:
 2. 检查时间是否单调递增
 3. 检查已解决的情节线是否标记正确
 4. 检查角色知识边界是否被突破
+5. 检查情绪矩阵是否对称合理（A 对 B 爱慕+8 但 B 对 A 敌对-6 需有情节理由）
+6. 检查 relations 中 stance 与 intensity 的符号一致（"友善"不能搭配负值 intensity）
+7. 检查氛围值是否与在场角色情绪一致
+8. 检查自主事件记录是否有异常堆积或断层
